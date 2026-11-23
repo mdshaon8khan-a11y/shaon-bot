@@ -1,44 +1,43 @@
 import os, requests, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("আসসালামু আলাইকুম শাওন! আমি এখন বুদ্ধিমান 😎 যা খুশি জিজ্ঞেস করো।")
+    await update.message.reply_text("Assalamu Alaikum Shaon! Ami tomar bot. Ami ekhon live achi ✅\n\nAmake kichu likhe pathao, ami reply dibo.")
 
 def ask_gemini(question):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
-    data = {"contents": [{"parts": [{"text": f"তুমি শাওনের বন্ধু, বাংলায় মজা করে ছোট করে উত্তর দাও। প্রশ্ন: {question}"}]}]}
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    data = {"contents": [{"parts": [{"text": question}]}]}
     try:
-        r = requests.post(url, json=data, timeout=30)
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        r = requests.post(url, json=data, timeout=20)
+        j = r.json()
+        if "candidates" not in j:
+            print("GEMINI ERROR:", j)
+            return "AI ektu busy, 1 min por abar likho Shaon!"
+        return j["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"একটু সমস্যা হইছে শাওন, আবার চেষ্টা করো। ({e})"
+        return f"Ektu somossa hoiche Shaon, abar chesta koro! ({e})"
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    await update.message.chat.send_action("typing")
-    reply = ask_gemini(text)
-    await update.message.reply_text(reply[:4000])
+    ans = ask_gemini(update.message.text)
+    await update.message.reply_text(ans)
 
-def keep_alive():
-    port = int(os.environ.get("PORT", 10000))
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Bot is live!")
-        def log_message(self, *a):
-            pass
-    HTTPServer(("0.0.0.0", port), H).serve_forever()
-
-if __name__ == "__main__":
-    threading.Thread(target=keep_alive, daemon=True).start()
+def run_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    print("Bot is running...")
     app.run_polling()
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"Bot is Live!")
+    def log_message(self, *a): pass
+
+if __name__ == "__main__":
+    threading.Thread(target=run_bot, daemon=True).start()
+    port = int(os.environ.get("PORT", 10000))
+    HTTPServer(("0.0.0.0", port), H).serve_forever()
