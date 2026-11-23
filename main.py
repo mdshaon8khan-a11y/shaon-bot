@@ -1,43 +1,44 @@
-import os, requests, threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
+import threading
+import requests
+from flask import Flask
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+GEMINI_KEY = os.environ.get("GEMINI_KEY")
+
+def ask_gemini(text):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
+    data = {"contents": [{"parts": [{"text": text}]}]}
+    try:
+        r = requests.post(url, json=data, timeout=30)
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print("Gemini Error:", e)
+        return "AI ektu busy, ektu pore abar try koro."
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Assalamu Alaikum Shaon! Ami tomar bot. Ami ekhon live achi ✅\n\nAmake kichu likhe pathao, ami reply dibo.")
+    await update.message.reply_text("Assalamu Alaikum Shaon! Ami tomar bot. Ami ekhon live achi ✅\n\nAmake kichu likho, ami reply dibo.")
 
-def ask_gemini(question):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    data = {"contents": [{"parts": [{"text": question}]}]}
-    try:
-        r = requests.post(url, json=data, timeout=20)
-        j = r.json()
-        if "candidates" not in j:
-            print("GEMINI ERROR:", j)
-            return "AI ektu busy, 1 min por abar likho Shaon!"
-        return j["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        return f"Ektu somossa hoiche Shaon, abar chesta koro! ({e})"
-
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ans = ask_gemini(update.message.text)
+async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    ans = ask_gemini(text)
     await update.message.reply_text(ans)
 
-def run_bot():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    app.run_polling(stop_signals=None)
+app = Application.builder().token(TELEGRAM_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200); self.end_headers(); self.wfile.write(b"Bot is Live!")
-    def log_message(self, *a): pass
+flask_app = Flask(__name__)
+@flask_app.route("/")
+def home():
+    return "Bot is Live!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    port = int(os.environ.get("PORT", 10000))
-    HTTPServer(("0.0.0.0", port), H).serve_forever()
+    threading.Thread(target=run_flask, daemon=True).start()
+    app.run_polling(stop_signals=None)
