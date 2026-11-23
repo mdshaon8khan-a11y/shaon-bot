@@ -1,15 +1,29 @@
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Assalamu Alaikum Shaon! Ami tomar bot. Ami ekhon live achi ✅\n\nAmake kichu likhe pathao, ami reply dibo.")
+    await update.message.reply_text("Assalamu Alaikum Shaon! Ami tomar bot. Ami ekhon live achi ✅")
 
 async def reply_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    await update.message.reply_text(f"Tumi bolso: {text}\n\nAmi tomar bot, ami shunsechi ❤️")
+    await update.message.reply_text(f"Tumi bolso: {text}")
+
+def keep_alive():
+    port = int(os.environ.get("PORT", 10000))
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot is live!")
+        def log_message(self, *a):
+            pass
+    HTTPServer(("0.0.0.0", port), H).serve_forever()
 
 def main():
+    threading.Thread(target=keep_alive, daemon=True).start()
     token = os.environ.get("BOT_TOKEN")
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", start))
